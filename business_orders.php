@@ -1,0 +1,318 @@
+<?php
+
+session_start();
+
+require_once "config/db.php";
+
+// Check if user is logged in
+if (!isset($_SESSION["user_id"])) {
+    header("Location: login.php");
+    exit();
+}
+
+// Check if user is a business owner
+if ($_SESSION["user_role"] !== "business_owner") {
+    header("Location: dashboard.php");
+    exit();
+}
+
+$owner_id = $_SESSION["user_id"];
+
+
+// Get the business owned by the logged-in user
+$business_sql = "SELECT id, business_name
+                 FROM businesses
+                 WHERE owner_id = ?";
+
+$business_stmt = $conn->prepare($business_sql);
+$business_stmt->bind_param("i", $owner_id);
+$business_stmt->execute();
+
+$business_result = $business_stmt->get_result();
+
+
+// Check if business exists
+if ($business_result->num_rows == 0) {
+    echo "<h2>You have not registered a business yet.</h2>";
+    echo '<a href="business.php">Register Your Business</a>';
+    exit();
+}
+
+$business = $business_result->fetch_assoc();
+
+$business_id = $business["id"];
+
+
+// Get orders containing products from this business
+$order_sql = "SELECT
+                o.id AS order_id,
+                o.total_amount,
+                o.status,
+                o.delivery_address,
+                o.created_at,
+                u.full_name AS customer_name,
+                u.email AS customer_email
+              FROM orders o
+              INNER JOIN users u
+                  ON o.customer_id = u.id
+              INNER JOIN order_items oi
+                  ON o.id = oi.order_id
+              INNER JOIN products p
+                  ON oi.product_id = p.id
+              WHERE p.business_id = ?
+              GROUP BY
+                  o.id,
+                  o.total_amount,
+                  o.status,
+                  o.delivery_address,
+                  o.created_at,
+                  u.full_name,
+                  u.email
+              ORDER BY o.created_at DESC";
+
+$order_stmt = $conn->prepare($order_sql);
+$order_stmt->bind_param("i", $business_id);
+$order_stmt->execute();
+
+$orders_result = $order_stmt->get_result();
+
+?>
+
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Business Orders</title>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+        }
+
+        .container {
+            width: 95%;
+            max-width: 1200px;
+            margin: 40px auto;
+        }
+
+        .box {
+            background-color: white;
+            padding: 25px;
+            border-radius: 8px;
+        }
+
+        h1 {
+            margin-bottom: 10px;
+        }
+
+        .business-name {
+            color: #555;
+            margin-bottom: 25px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+
+        th {
+            background-color: #00ad2e;
+            color: white;
+        }
+
+        tr:hover {
+            background-color: #f9f9f9;
+        }
+
+        .status {
+            font-weight: bold;
+        }
+
+        .pending {
+            color: #d39e00;
+        }
+
+        .confirmed {
+            color: #007bff;
+        }
+
+        .processing {
+            color: #6f42c1;
+        }
+
+        .completed {
+            color: #198754;
+        }
+
+        .view-button {
+            display: inline-block;
+            background-color: #00ad2e;
+            color: white;
+            text-decoration: none;
+            padding: 8px 12px;
+            border-radius: 5px;
+        }
+
+        .view-button:hover {
+            background-color: #008f25;
+        }
+
+        .back {
+            display: inline-block;
+            margin-top: 20px;
+            color: #333;
+            text-decoration: none;
+        }
+
+        .no-orders {
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="box">
+
+        <h1>Customer Orders</h1>
+
+        <div class="business-name">
+            Business: 
+            <strong>
+                <?php echo htmlspecialchars($business["business_name"]); ?>
+            </strong>
+        </div>
+
+
+        <?php if ($orders_result->num_rows > 0): ?>
+
+            <table>
+
+                <thead>
+
+                    <tr>
+
+                        <th>Order ID</th>
+
+                        <th>Customer</th>
+
+                        <th>Email</th>
+
+                        <th>Total</th>
+
+                        <th>Status</th>
+
+                        <th>Date</th>
+
+                        <th>Action</th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                <?php while ($order = $orders_result->fetch_assoc()): ?>
+
+                    <tr>
+
+                        <td>
+                            #<?php echo $order["order_id"]; ?>
+                        </td>
+
+                        <td>
+                            <?php echo htmlspecialchars($order["customer_name"]); ?>
+                        </td>
+
+                        <td>
+                            <?php echo htmlspecialchars($order["customer_email"]); ?>
+                        </td>
+
+                        <td>
+                            M <?php echo number_format($order["total_amount"], 2); ?>
+                        </td>
+
+                        <td>
+
+                            <span class="status <?php echo htmlspecialchars($order["status"]); ?>">
+
+                                <?php echo ucfirst($order["status"]); ?>
+
+                            </span>
+
+                        </td>
+
+                        <td>
+                            <?php echo htmlspecialchars($order["created_at"]); ?>
+                        </td>
+
+                        <td>
+
+                            <a
+                                class="view-button"
+                                href="business_order_details.php?order_id=<?php echo $order["order_id"]; ?>"
+                            >
+                                View Order
+                            </a>
+
+                        </td>
+
+                    </tr>
+
+                <?php endwhile; ?>
+
+                </tbody>
+
+            </table>
+
+        <?php else: ?>
+
+            <div class="no-orders">
+
+                <strong>No orders yet.</strong>
+
+                <p>
+                    When customers purchase products from your business,
+                    their orders will appear here.
+                </p>
+
+            </div>
+
+        <?php endif; ?>
+
+
+        <a href="business_owner_dashboard.php" class="back">
+            ← Back to Business Dashboard
+        </a>
+
+    </div>
+
+</div>
+
+</body>
+
+</html>

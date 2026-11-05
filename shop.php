@@ -1,0 +1,379 @@
+<?php
+
+session_start();
+
+require_once "config/db.php";
+
+// Check if user is logged in
+if (!isset($_SESSION["user_id"])) {
+    header("Location: login.php");
+    exit();
+}
+
+// Get all active products
+$sql = "
+    SELECT
+        p.id,
+        p.name,
+        p.description,
+        p.price,
+        p.stock_quantity,
+        p.image,
+        b.business_name,
+        c.name AS category_name
+    FROM products p
+
+    INNER JOIN businesses b
+        ON p.business_id = b.id
+
+    LEFT JOIN categories c
+        ON p.category_id = c.id
+
+    WHERE p.status = 'active'
+    AND p.stock_quantity > 0
+
+    ORDER BY p.created_at DESC
+";
+
+$result = $conn->query($sql);
+
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Shop - Small Business Shop</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            background-color: #f5f7f6;
+        }
+
+        nav {
+            background-color: #00ad2e;
+            padding: 18px 7%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        nav h2 {
+            color: white;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        nav a {
+            color: #00ad2e;
+            background-color: white;
+            text-decoration: none;
+            padding: 10px 18px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 1200px;
+            margin: 40px auto;
+        }
+
+        .heading {
+            margin-bottom: 30px;
+        }
+
+        .heading h1 {
+            margin-bottom: 10px;
+        }
+
+        .heading p {
+            color: #666;
+        }
+
+        .product-grid {
+            display: grid;
+            grid-template-columns:
+                repeat(auto-fit, minmax(240px, 1fr));
+
+            gap: 25px;
+        }
+
+        .product-card {
+            background-color: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+        }
+
+        .product-image {
+            width: 30%;
+            height: 200px;
+            object-fit: cover;
+        }
+
+        .no-image {
+            height: 200px;
+            background-color: #eeeeee;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #777;
+        }
+
+        .product-content {
+            padding: 20px;
+        }
+
+        .product-content h3 {
+            margin-bottom: 8px;
+        }
+
+        .business {
+            color: #00ad2e;
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .category {
+            color: #777;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+        .description {
+            color: #555;
+            line-height: 1.5;
+            margin-bottom: 15px;
+        }
+
+        .price {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .stock {
+            color: #555;
+            margin-bottom: 15px;
+        }
+
+        .buy-button {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background-color: #00ad2e;
+            color: white;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        .buy-button:hover {
+            background-color: #008f26;
+        }
+
+        .empty {
+            background-color: white;
+            padding: 40px;
+            text-align: center;
+            border-radius: 10px;
+            color: #666;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<nav>
+
+    <h2>Small Business Shop</h2>
+
+    <div class="nav-links">
+
+        <a href="dashboard.php">
+            Dashboard
+        </a>
+
+        <a href="logout.php">
+            Logout
+        </a>
+
+    </div>
+
+</nav>
+
+
+<div class="container">
+
+    <div class="heading">
+
+        <h1>Shop Products</h1>
+
+        <p>
+            Explore products from local businesses.
+        </p>
+
+    </div>
+
+
+    <?php if ($result && $result->num_rows > 0): ?>
+
+        <div class="product-grid">
+
+            <?php while ($product = $result->fetch_assoc()): ?>
+
+                <div class="product-card">
+
+                    <?php if (!empty($product["image"])): ?>
+
+                        <img
+                            class="product-image"
+                            src="<?php echo htmlspecialchars($product["image"]); ?>"
+                            alt="<?php echo htmlspecialchars($product["name"]); ?>"
+                        >
+
+                    <?php else: ?>
+
+                        <div class="no-image">
+                            No Image Available
+                        </div>
+
+                    <?php endif; ?>
+
+
+                    <div class="product-content">
+
+                        <h3>
+                            <?php
+                            echo htmlspecialchars(
+                                $product["name"]
+                            );
+                            ?>
+                        </h3>
+
+
+                        <div class="business">
+
+                            Business:
+                            <?php
+                            echo htmlspecialchars(
+                                $product["business_name"]
+                            );
+                            ?>
+
+                        </div>
+
+
+                        <?php if (!empty($product["category_name"])): ?>
+
+                            <div class="category">
+
+                                Category:
+                                <?php
+                                echo htmlspecialchars(
+                                    $product["category_name"]
+                                );
+                                ?>
+
+                            </div>
+
+                        <?php endif; ?>
+
+
+                        <p class="description">
+
+                            <?php
+
+                            echo !empty($product["description"])
+
+                                ? htmlspecialchars(
+                                    $product["description"]
+                                )
+
+                                : "No description available.";
+
+                            ?>
+
+                        </p>
+
+
+                        <div class="price">
+
+                            M<?php
+                            echo number_format(
+                                $product["price"],
+                                2
+                            );
+                            ?>
+
+                        </div>
+
+
+                        <div class="stock">
+
+                            <?php
+                            echo $product["stock_quantity"];
+                            ?>
+
+                            available
+
+                        </div>
+
+
+                        <a class="buy-button" href="add_to_cart.php?product_id=<?php echo $product['id']; ?>">
+    Add to Cart
+</a>
+
+                    </div>
+
+                </div>
+
+            <?php endwhile; ?>
+
+        </div>
+
+    <?php else: ?>
+
+        <div class="empty">
+
+            <h2>No Products Available</h2>
+
+            <p>
+                There are currently no products available
+                in the shop.
+            </p>
+
+        </div>
+
+    <?php endif; ?>
+
+</div>
+
+</body>
+
+</html>
